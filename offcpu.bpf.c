@@ -62,6 +62,11 @@ static int trace_sched_switch(struct task_struct *prev, struct task_struct *next
     return 0;
 }
 
+SEC("raw_tp/block_rq_complete")
+int BPF_PROG(handle_sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next){
+    return trace_sched_switch(prev, next)
+}
+
 // Attach to the sched_switch tracepoint
 SEC("tracepoint/sched/sched_switch")
 int handle_sched_switch(struct task_struct *prev, struct task_struct *next) {
