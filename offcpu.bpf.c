@@ -30,13 +30,13 @@ static int trace_sched_switch(struct task_struct *prev, struct task_struct *next
     u32 next_pid = BPF_CORE_READ(next, pid);  // Get PID of the next task
     u64 *start_ts, delta;
     
-    // New method: Get the state of the previous task using task_state in newer kernels
-    long prev_state = BPF_CORE_READ(prev, __state);
+    // // New method: Get the state of the previous task using task_state in newer kernels
+    // long prev_state = BPF_CORE_READ(prev, __state);
 
-    // If the previous task was running, record its start time
-    if (prev_state == TASK_RUNNING) {
-        bpf_map_update_elem(&start_time, &prev_pid, &ts, BPF_ANY);  // Store start time
-    }
+    // // If the previous task was running, record its start time
+    // if (prev_state == TASK_RUNNING) {
+    //     bpf_map_update_elem(&start_time, &prev_pid, &ts, BPF_ANY);  // Store start time
+    // }
 
     // Check if the next task's start time is stored
     start_ts = bpf_map_lookup_elem(&start_time, &next_pid);
