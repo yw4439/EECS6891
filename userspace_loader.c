@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     }
 
     // Attach the BPF program to the sched:sched_switch tracepoint
-    if (bpf_prog_attach(prog_fd, 0, BPF_TRACE_FENTRY, 0) < 0) {
+    if (bpf_prog_attach(prog_fd) < 0) {
         fprintf(stderr, "Failed to attach BPF program to tracepoint: %s\n", strerror(errno));
         return 1;
     }
