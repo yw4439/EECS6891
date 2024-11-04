@@ -16,49 +16,75 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, MAX_ENTRIES);
+    __type(key, u64);
+    __type(value, u64);
+} blocked_histogram SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, MAX_ENTRIES);
     __type(key, u32);
     __type(value, u64);
 } start_time SEC(".maps");
 
-static int trace_sched_switch(u32 prev_pid, u32 next_pid, long prev_state) {
+SEC("tracepoint/sched/sched_switch")
+int handle_sched_switch(struct trace_event_raw_sched_switch *ctx) {
     u64 ts = bpf_ktime_get_ns();
-    u64 *start_ts, delta;
+    u32 prev_pid = ctx->prev_pid;
+    u32 next_pid = ctx->next_pid;
+    long prev_state = ctx->prev_state;
 
-    // If the previous task was running, record its start time
     if (prev_state == TASK_RUNNING) {
-        bpf_map_update_elem(&start_time, &prev_pid, &ts, BPF_ANY);
+        // Store the timestamp for the previous task
+        bpf_map_update_elem(&start_times, &prev_pid, &ts, BPF_ANY);
     }
 
-    // Check if the next task's start time is stored
-    start_ts = bpf_map_lookup_elem(&start_time, &next_pid);
+    // Calculate off-CPU time for the next task
+    u64 *start_ts = bpf_map_lookup_elem(&start_times, &next_pid);
     if (start_ts) {
-        delta = ts - *start_ts;
-        u64 key = delta / 1000;  // Convert to microseconds
+        u64 delta = ts - *start_ts;  // Calculate off-CPU time in nanoseconds
+        u64 bucket = delta / 1000;   // Convert to microseconds
 
-        // Look up the corresponding histogram bucket
-        u64 *count = bpf_map_lookup_elem(&offcpu_histogram, &key);
+        u64 *count = bpf_map_lookup_elem(&offcpu_histogram, &bucket);
         if (count) {
             (*count)++;
         } else {
-            u64 init_val = 1;
-            bpf_map_update_elem(&offcpu_histogram, &key, &init_val, BPF_ANY);
+            u64 initial_count = 1;
+            bpf_map_update_elem(&offcpu_histogram, &bucket, &initial_count, BPF_ANY);
         }
-
-        // Clean up: remove the start time after use
-        bpf_map_delete_elem(&start_time, &next_pid);
+        bpf_map_delete_elem(&start_times, &next_pid);
     }
 
     return 0;
 }
 
-SEC("tracepoint/sched/sched_switch")
-int handle_sched_switch(struct trace_event_raw_sched_switch *ctx) {
-    u32 prev_pid = ctx->prev_pid;  // Get PID of the previous task
-    u32 next_pid = ctx->next_pid;  // Get PID of the next task
-    long prev_state = ctx->prev_state;  // Get the state of the previous task
+SEC("tracepoint/sched/sched_wakeup")
+int handle_sched_wakeup(struct trace_event_raw_sched_wakeup *ctx) {
+    u32 pid = ctx->pid;
+    u64 ts = bpf_ktime_get_ns();
 
-    return trace_sched_switch(prev_pid, next_pid, prev_state);
+    // Check if a blocked start time exists for this PID
+    u64 *start_ts = bpf_map_lookup_elem(&start_times, &pid);
+    if (start_ts) {
+        u64 delta = ts - *start_ts;  // Blocked time in nanoseconds
+        u64 bucket = delta / 1000;   // Convert to microseconds
+
+        u64 *count = bpf_map_lookup_elem(&blocked_histogram, &bucket);
+        if (count) {
+            (*count)++;
+        } else {
+            u64 initial_count = 1;
+            bpf_map_update_elem(&blocked_histogram, &bucket, &initial_count, BPF_ANY);
+        }
+        bpf_map_delete_elem(&start_times, &pid);
+    }
+
+    // Store the wakeup time for the next time it switches off CPU
+    bpf_map_update_elem(&start_times, &pid, &ts, BPF_ANY);
+
+    return 0;
 }
+
 
 char LICENSE[] SEC("license") = "GPL";
 
