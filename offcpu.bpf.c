@@ -63,8 +63,8 @@ int handle_sched_wakeup(void *ctx) {
     u32 pid;
     u64 ts = bpf_ktime_get_ns();
 
-    // Use BPF_CORE_READ to read the pid field from the context
-    pid = BPF_CORE_READ(ctx, pid);
+    // Use bpf_probe_read_kernel to read the pid field from the context
+    bpf_probe_read_kernel(&pid, sizeof(pid), (void *)((char *)ctx + offsetof(struct trace_event_raw_sched_wakeup, pid)));
 
     // Rest of the code remains the same
     u64 *start_ts = bpf_map_lookup_elem(&start_times, &pid);
