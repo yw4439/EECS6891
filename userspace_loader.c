@@ -26,17 +26,25 @@ int main(int argc, char **argv) {
 
     // Get the file descriptor of the loaded BPF program
     prog_fd = bpf_program__fd(bpf_object__find_program_by_name(obj, "handle_sched_switch"));
-    prog = bpf_object__find_program_by_name;
     if (prog_fd < 0) {
         fprintf(stderr, "Failed to find BPF program: %s\n", strerror(errno));
         return 1;
     }
 
+    // Find the BPF program by its name
+    prog = bpf_object__find_program_by_name(obj, "handle_sched_switch");
+    if (!prog) {
+        fprintf(stderr, "Failed to find BPF program by name: %s\n", strerror(errno));
+        return 1;
+    }
+
     // Attach the BPF program to the sched:sched_switch tracepoint
-    if (bpf_program__attach(prog) < 0) {
+    link = bpf_program__attach_tracepoint(prog, "sched", "sched_switch");
+    if (!link) {
         fprintf(stderr, "Failed to attach BPF program to tracepoint: %s\n", strerror(errno));
         return 1;
     }
+
 
     printf("BPF program successfully loaded and attached!\n");
 
