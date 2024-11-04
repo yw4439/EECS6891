@@ -25,7 +25,7 @@ struct {
     __uint(max_entries, MAX_ENTRIES);
     __type(key, u32);
     __type(value, u64);
-} start_time SEC(".maps");
+} start_times SEC(".maps");
 
 SEC("tracepoint/sched/sched_switch")
 int handle_sched_switch(struct trace_event_raw_sched_switch *ctx) {
@@ -59,11 +59,14 @@ int handle_sched_switch(struct trace_event_raw_sched_switch *ctx) {
 }
 
 SEC("tracepoint/sched/sched_wakeup")
-int handle_sched_wakeup(struct trace_event_raw_sched_wakeup *ctx) {
-    u32 pid = ctx->pid;
+int handle_sched_wakeup(void *ctx) {
+    u32 pid;
     u64 ts = bpf_ktime_get_ns();
 
-    // Check if a blocked start time exists for this PID
+    // Use BPF_CORE_READ to read the pid field from the context
+    pid = BPF_CORE_READ(ctx, pid);
+
+    // Rest of the code remains the same
     u64 *start_ts = bpf_map_lookup_elem(&start_times, &pid);
     if (start_ts) {
         u64 delta = ts - *start_ts;  // Blocked time in nanoseconds
