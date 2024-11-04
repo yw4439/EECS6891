@@ -63,7 +63,7 @@ static int trace_sched_switch(struct task_struct *prev, struct task_struct *next
 }
 
 SEC("raw_tp/sched_switch")
-int BPF_PROG(handle_sched_switch, bool preempt, struct task_struct *prev, struct task_struct *next){
+int BPF_PROG(handle_sched_switch, struct task_struct *prev, struct task_struct *next){
     return trace_sched_switch(prev, next);
 }
 
